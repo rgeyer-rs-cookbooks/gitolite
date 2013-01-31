@@ -18,5 +18,5 @@
 default["gitolite"]["install_dir"] = "/usr/share/gitolite"
 default["gitolite"]["bin_dir"] = "/usr/bin"
 default["gitolite"]["home"] = "/mnt/storage/gitolite"
-default["gitolite"]["uid"] = "gitolite"
-default["gitolite"]["gid"] = "gitolite"
+default["gitolite"]["uid"] = "git"
+default["gitolite"]["gid"] = "git"

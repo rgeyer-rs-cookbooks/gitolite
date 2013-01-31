@@ -20,13 +20,17 @@ rightscale_marker :begin
 
 gitolite_install = ::File.join(node["gitolite"]["install_dir"], "install")
 ssh_dir = ::File.join(node["gitolite"]["home"], ".ssh")
+tmp_private_key = ::File.join(Chef::Config[:file_cache_path], "id_rsa")
+tmp_public_key = ::File.join(Chef::Config[:file_cache_path], "id_rsa.pub")
 private_key = ::File.join(ssh_dir, "id_rsa")
 public_key = ::File.join(ssh_dir, "id_rsa.pub")
+
+repositories_path = ::File.join(node["gitolite"]["home"], "repositories")
 
 home_dir_parent = node["gitolite"]["home"].gsub(::File.basename(node["gitolite"]["home"], ""), "")
 
 # Hardcode the git base_dir which git::server uses
-node["git"]["server"]["base_path"] = ::File.join(node["gitolite"]["home"], "repositories")
+node["git"]["server"]["base_path"] = repositories_path
 node["git"]["server"]["export_all"] = "false"
 
 case node["platform_family"]
@@ -65,19 +69,18 @@ user node["gitolite"]["uid"] do
   comment "Gitolite repository"
   gid node["gitolite"]["gid"]
   home node["gitolite"]["home"]
-  shell "/bin/sh"
 end
 
-directory ssh_dir do
-  group node["gitolite"]["gid"]
-  owner node["gitolite"]["uid"]
-  mode 00700
-  recursive true
-  action :create
-end
+#directory ssh_dir do
+#  group node["gitolite"]["gid"]
+#  owner node["gitolite"]["uid"]
+#  mode 00700
+#  recursive true
+#  action :create
+#end
 
 if node["gitolite"]["ssh_key"]
-  file private_key do
+  file tmp_public_key do
     content node["gitolite"]["ssh_key"]
     mode 00600
     group node["gitolite"]["gid"]
@@ -85,33 +88,33 @@ if node["gitolite"]["ssh_key"]
     backup false
     action :create
   end
-
-  bash "Create public key from private key" do
-    code <<-EOF
-ssh-keygen -N \"\" -f #{private_key} -y > #{public_key}
-    EOF
-    not_if ::File.exist?(public_key)
-  end
 else
   execute "Create a net-new private and public SSH key" do
-    command "ssh-keygen -q -t rsa -N \"\" -f #{private_key}"
-    creates private_key
+    command "ssh-keygen -q -t rsa -N \"\" -f #{tmp_private_key}"
+    creates tmp_private_key
   end
-end
-
-execute "Make sure #{node["gitolite"]["uid"]}:#{node["gitolite"]["gid"]} owns #{node["gitolite"]["home"]}" do
-  command "chown -R #{node["gitolite"]["uid"]}:#{node["gitolite"]["gid"]} #{node["gitolite"]["home"]}"
 end
 
 execute "Initialize a fresh gitolite instance (if one does not already exist)" do
   command <<-EOF
-  su #{su_param}="gitolite setup -pk #{public_key}" #{node["gitolite"]["uid"]}
+  su #{su_param}="gitolite setup -pk #{tmp_public_key}" #{node["gitolite"]["uid"]}
 EOF
-  creates ::File.join(node["gitolite"]["home"], "repositories", "gitolite-admin.git")
+  creates ::File.join(repositories_path, "gitolite-admin.git")
 end
 
-execute "Make sure everyone can read #{node["gitolite"]["home"]} so that git-daemon can read it" do
-  command "chmod 0775 -R #{node["gitolite"]["home"]}"
+ruby_block "Copy the private key to gitolites home (if one was generated dynamically)" do
+  block do
+    if ::File.exist?(tmp_private_key)
+      FileUtils.cp(tmp_private_key, private_key)
+    end
+  end
+end
+
+bash "Enforce proper permissions for (#{repositories_path})" do
+  code <<-EOF
+  chown -R #{node["gitolite"]["uid"]}:#{node["gitolite"]["gid"]} #{node["gitolite"]["home"]}
+  chmod 0775 -R #{repositories_path}
+EOF
 end
 
 include_recipe "git::server"

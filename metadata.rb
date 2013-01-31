@@ -18,7 +18,7 @@ attribute "gitolite/home",
   :recipes => ["gitolite::default"]
 
 attribute "gitolite/ssh_key",
-  :display_name => "Gitolite Private Key",
-  :description => "Private RSA (or DSA) key material to be used when initializing the gitolite repository/home. Set to ignore for a new key to be automatically generated.",
+  :display_name => "Gitolite Public Key",
+  :description => "Public RSA (or DSA) key material to be used when initializing the gitolite repository/home. Set to ignore for a new key to be automatically generated.",
   :required => false,
   :recipes => ["gitolite::default"]
