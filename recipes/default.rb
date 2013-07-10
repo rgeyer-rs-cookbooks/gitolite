@@ -24,6 +24,7 @@ tmp_private_key = ::File.join(Chef::Config[:file_cache_path], "id_rsa")
 tmp_public_key = ::File.join(Chef::Config[:file_cache_path], "id_rsa.pub")
 private_key = ::File.join(ssh_dir, "id_rsa")
 public_key = ::File.join(ssh_dir, "id_rsa.pub")
+gitolite_rc = ::File.join(node["gitolite"]["home"], ".gitolite.rc")
 
 repositories_path = ::File.join(node["gitolite"]["home"], "repositories")
 
@@ -102,6 +103,14 @@ EOF
   creates ::File.join(repositories_path, "gitolite-admin.git")
 end
 
+template gitolite_rc do
+  source "gitolite.rc.erb"
+  backup false
+  owner node["gitolite"]["uid"]
+  group node["gitolite"]["gid"]
+  mode 00755
+end
+
 ruby_block "Copy the private key to gitolites home (if one was generated dynamically)" do
   block do
     if ::File.exist?(tmp_private_key)
@@ -110,13 +119,13 @@ ruby_block "Copy the private key to gitolites home (if one was generated dynamic
   end
 end
 
+include_recipe "git::server"
+
 bash "Enforce proper permissions for (#{repositories_path})" do
   code <<-EOF
   chown -R #{node["gitolite"]["uid"]}:#{node["gitolite"]["gid"]} #{node["gitolite"]["home"]}
   chmod 0775 -R #{repositories_path}
 EOF
 end
-
-include_recipe "git::server"
 
 rightscale_marker :end
